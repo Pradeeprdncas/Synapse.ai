@@ -1,214 +1,290 @@
-# V1 Documentation — Atlas CRM MVP
+# Atlas CRM — AI-Powered Project Management System
 
-> Status: ✅ Complete and Stable  
-> Tagged: v1.0  
-> Date completed: May 2026
-
----
-
-## What V1 Does
-
-Atlas CRM V1 is a functional project management system where:
-
-1. Admin creates a project and uploads a PRD document
-2. System extracts text from the document using PDF parser
-3. RAG pipeline chunks the text and stores it locally
-4. AI reads the chunks and generates a structured task list
-5. Tasks are assigned to developers automatically
-6. Team receives notifications via Telegram bot
-7. Managers can query the bot to get project status updates
-8. Dashboard shows project progress, tasks, timelines, and finance tracking
+> An intelligent CRM that automates project tracking, task generation, and team communication — eliminating manual overhead for managers and HR through RAG-powered document intelligence.
+>
+> Link: https://synapse-ai.pradeep-nagarajan.workers.dev/
 
 ---
 
-## Architecture
+## The Problem
+
+Traditional CRMs require managers and HR to manually update project status, create tasks from PRDs, track progress, and communicate updates across teams. This takes hours every week and introduces human error.
+
+**Atlas CRM removes that burden entirely.** Upload a PRD or project document. The system reads it, understands it, extracts tasks, assigns them, tracks progress, and keeps everyone updated — automatically.
+
+---
+
+## System Architecture Overview
 
 ```
-User uploads PRD
-      │
-      ▼
-Backend API (Node.js + Express)
-      │
-      ├── Prisma ORM → MySQL Database
-      │     (projects, tasks, users, documents)
-      │
-      └── RAG Module (embedded in backend)
-            │
-            ├── PDF text extraction (pdf-parse)
-            ├── Text chunking (fixed-size, keyword-based)
-            ├── Chunk storage (JSON files / database)
-            ├── Query → keyword match → top 5 chunks
-            └── Mistral AI → generate answer
-                        │
-                        ▼
-              Telegram Bot (@AtlasRAGbot)
-              sends response to user
+Client (Web / Telegram Bot)
+        │
+        ▼
+┌─────────────────────────┐
+│   Backend API (Node.js) │  ← Authentication, Project Management, CRM Logic
+│   Express + Prisma      │
+└────────────┬────────────┘
+             │
+             ▼
+┌─────────────────────────┐
+│   RAG Microservice      │  ← Document Intelligence Engine
+│   (Standalone Service)  │  ← Chunking, Embedding, Vector Search, Generation
+└────────────┬────────────┘
+             │
+             ▼
+┌─────────────────────────┐
+│   LLM APIs              │  ← Mistral / OpenAI for generation
+│   Vector Store          │  ← Embeddings and semantic search
+│   Document Storage      │  ← PDF/DOCX processing pipeline
+└─────────────────────────┘
 ```
 
 ---
 
-## Tech Stack
+## Version Roadmap
 
-| Layer | Technology | Why chosen |
-|-------|-----------|------------|
-| Backend | Node.js + Express | Fast to build, familiar ecosystem |
-| ORM | Prisma | Clean schema management, type safety |
-| Database | MySQL | Relational structure fits project/task model |
-| Frontend | React + Vite | Fast development, component-based |
-| PDF Processing | pdf-parse | Simple text extraction from PDFs |
-| AI Generation | Mistral AI | Cost-effective, good quality responses |
-| Bot | Telegram Bot API | Easy integration, widely used |
-| Auth | JWT + RBAC | Secure, stateless authentication |
+### ✅ V1 — Core MVP (Completed)
+**Goal:** Build a working CRM with basic RAG integrated directly into the backend.
 
----
+**What's built:**
+- Full project management system — create projects, assign members, track tasks
+- Document upload and processing pipeline
+- Basic RAG implementation — PDF text extraction, keyword-based chunk retrieval
+- AI-powered task generation from uploaded PRD documents
+- Telegram bot integration (`@AtlasRAGbot`) for team notifications and queries
+- JWT authentication with role-based access (Admin, Manager, Developer)
+- Analytics dashboard, finance tracking, notification system
 
-## What Works in V1
+**Tech Stack:**
+- Backend: Node.js, Express.js, Prisma ORM, MySQL
+- Frontend: React, Vite
+- RAG: PDF parsing, keyword-based chunking, Mistral AI for generation
+- Bot: Telegram Bot API
+- Auth: JWT, RBAC middleware
 
-- User registration and login with JWT
-- Role-based access — Admin, Manager, Developer see different views
-- Create and manage projects with team assignment
-- Upload PRD documents (PDF/DOCX)
-- AI-generated task list from uploaded documents
-- Task tracking with status updates
-- Telegram bot for querying project status
-- Basic analytics dashboard
-- Finance tracking per project
-- Notification system for task updates
+**Known Limitations (documented for V2):**
+- RAG is tightly coupled to the main backend — slow document processing blocks API responses
+- Keyword matching only — no semantic understanding, misses conceptually similar content
+- No vector embeddings — retrieval quality degrades with complex queries
+- Single bot integration only
 
----
-
-## Known Limitations (Fixed in V2)
-
-**Performance:**
-- Document processing is synchronous — blocks the API for 8-12 seconds during upload
-- Large documents (5MB+) cause timeout errors
-- No job queue — concurrent uploads cause server strain
-
-**RAG Quality:**
-- Keyword matching only — misses conceptually related content
-- No vector embeddings — "contract expiry" won't match "when does the agreement end"
-- Fixed-size chunking breaks sentences at arbitrary points losing context
-- No reranking — top 5 chunks may not be the most relevant 5
-
-**Architecture:**
-- RAG is tightly coupled to backend — cannot scale independently
-- Single bot integration only (Telegram)
-- No retry logic if AI API call fails
+**Baseline Performance (V1):**
+| Operation | Time |
+|-----------|------|
+| Document upload + processing | ~8-12 seconds (synchronous) |
+| Query retrieval (keyword) | ~200-400ms |
+| Full query to answer | ~4-6 seconds |
+| Max reliable document size | ~5MB |
 
 ---
 
-## Baseline Performance Numbers
+### 🔄 V2 — RAG Microservice (In Progress)
+**Goal:** Extract RAG into a standalone microservice with vector embeddings, semantic search, and multi-bot support.
 
-These numbers are measured on V1 and used as comparison baseline for V2 and V3 improvements.
+**What's changing:**
+- RAG becomes a **separate process** with its own API — decoupled from main backend
+- Synchronous document processing replaced with **async job queue** (Bull + Redis)
+- Keyword matching upgraded to **vector embeddings + semantic search**
+- Chunk storage moved to **vector database** for similarity search
+- Bot integrations expanded: Telegram (existing) + Discord + WhatsApp
+- Each bot documents its own behavior, failure states, and response patterns
 
-| Operation | Time | Notes |
-|-----------|------|-------|
-| PDF text extraction | ~1-2 seconds | Depends on file size |
-| Text chunking | ~0.1-0.3 seconds | Fixed-size, simple |
-| Query keyword retrieval | ~200-400ms | Searches stored chunks |
-| Mistral AI generation | ~2-4 seconds | API latency |
-| Full query to answer | ~4-6 seconds | End to end |
-| Document upload blocking time | ~8-12 seconds | Blocks main API |
-| Max reliable document size | ~5MB | Larger causes timeouts |
+**Architecture change:**
+```
+V1: Frontend → Backend → [RAG inside backend] → LLM
+V2: Frontend → Backend → Job Queue → RAG Microservice → Vector Store → LLM
+                              ↑
+                    Telegram / Discord / WhatsApp Bots
+```
+
+**Measurement targets for V2:**
+- Document processing time (async, not blocking main API)
+- Retrieval accuracy improvement over V1 keyword search
+- Failure state reduction — target: zero unhandled failures
+- Bot response time per platform
+
+**V2 Telegram Bot:** [@AtlasRAGbot](https://web.telegram.org/k/#@AtlasRAGbot)
 
 ---
 
-## How to Run V1
+### 📋 V3 — RAG Research and Optimization (Planned)
+**Goal:** Systematic improvement of every RAG component through measurement and experimentation. Target: process 100MB+ documents in under 15 seconds.
 
+**Research areas:**
+
+#### Chunking Experiments
+| Method | Description | Measure |
+|--------|-------------|---------|
+| Fixed-size | Split every N characters | Speed vs accuracy |
+| Sentence | Split at sentence boundaries | Context preservation |
+| Paragraph | Split at paragraph breaks | Natural boundaries |
+| Sliding window | Overlapping chunks | Boundary context |
+| Semantic | Split at topic shifts | Best quality, highest cost |
+
+**Target:** Find the optimal chunking method for legal/contract documents (railway tenders, PRDs).
+
+#### Embedding Experiments
+| Model | Dimensions | Speed | Quality |
+|-------|-----------|-------|---------|
+| all-MiniLM-L6-v2 | 384 | Fast | Good |
+| all-mpnet-base-v2 | 768 | Medium | Better |
+| text-embedding-3-small | 1536 | API cost | Best |
+
+**Target:** Best accuracy-to-speed ratio for document types used in CRM.
+
+#### Retrieval Experiments
+| Method | Description |
+|--------|-------------|
+| Keyword (BM25) | Classic term matching |
+| Semantic (cosine) | Vector similarity |
+| Hybrid | Weighted combination |
+| Reranking | Two-stage retrieval |
+| MMR | Diversity-aware retrieval |
+
+**Target:** Hybrid + reranking as final implementation.
+
+#### Performance Targets
+| Document Size | Target Processing Time |
+|--------------|----------------------|
+| 10MB | < 3 seconds |
+| 50MB | < 8 seconds |
+| 100MB | < 15 seconds |
+
+**Scalability test:** Measure if processing time grows linearly or exponentially with document size. Fix exponential growth points.
+
+**Bot integrations for V3:** Telegram + Discord + WhatsApp + Microsoft Teams + Slack
+
+---
+
+### 🎨 V4 — Frontend and Backend Overhaul (Planned)
+**Goal:** Production-grade UI and hardened backend.
+
+- Complete frontend redesign — better project dashboards, real-time updates
+- WebSocket integration for live project status updates
+- Improved error handling across all services
+- API rate limiting and security hardening
+- Performance monitoring and alerting
+
+---
+
+### 🚀 V5 — Full System Merge and Production Release (Planned)
+**Goal:** Merge all services into a production-deployable system with full documentation.
+
+- Single deployment configuration for all services
+- Complete API documentation
+- End-to-end test suite
+- Cost tracking dashboard (tokens used, API costs per project)
+- Research paper documentation of V3 RAG experiments
+
+---
+
+## Experiment Log
+
+> Every experiment in V3 is documented here. Format: what was tried, how it was measured, what improved.
+
+### Experiment Template
+```
+Date: 
+Experiment: 
+Hypothesis: 
+Method: 
+Metric measured: 
+Result: 
+Conclusion: 
+Next step: 
+```
+
+*Experiments will be added here as V3 progresses.*
+
+---
+
+## Running the Project
+
+### V1 — Backend + Frontend
 ```bash
+# Clone the repository
 git clone https://github.com/Pradeeprdncas/[repo-name]
-cd v1
 
-# Install dependencies
+# Backend
+cd backend
 npm install
-
-# Set up environment
-cp .env.example .env
-# Add: DATABASE_URL, JWT_SECRET, MISTRAL_API_KEY, TELEGRAM_BOT_TOKEN
-
-# Set up database
+cp .env.example .env  # Add your API keys
 npx prisma migrate dev
-
-# Start server
 npm run dev
 
-# Start Telegram bot (separate terminal)
-cd bot
+# Frontend
+cd frontend
+npm install
 npm run dev
 ```
 
----
+### V2 — With RAG Microservice
+```bash
+# Start main backend
+cd backend && npm run dev
 
-## V1 Telegram Bot
+# Start RAG microservice (separate process)
+cd rag-service && npm run dev
 
-**Bot:** [@AtlasRAGbot](https://web.telegram.org/k/#@AtlasRAGbot)
+# Start Redis (required for job queue)
+redis-server
 
-**What it does in V1:**
-- Receive project status queries
-- Query the RAG system and return AI-generated answers
-- Send task assignment notifications to developers
-- Alert managers when tasks are updated
-
-**Commands:**
-```
-/start — Initialize bot and link to project
-/status [project-name] — Get current project status
-/tasks — List pending tasks
-/query [question] — Ask anything about the project documents
+# Start Telegram bot
+cd bot && npm run dev
 ```
 
----
-
-## What V2 Fixes
-
-| V1 Problem | V2 Solution |
-|-----------|------------|
-| Synchronous document processing | Async job queue with Bull + Redis |
-| Keyword matching only | Vector embeddings + semantic search |
-| RAG coupled to backend | Standalone RAG microservice |
-| Single bot | Telegram + Discord + WhatsApp |
-| No retry logic | Full error handling and retry |
-| Timeouts on large files | Streaming processing, no size limit |
-
----
-
-## Files in V1
-
+### Environment Variables Required
 ```
-v1/
-├── backend/
-│   ├── src/
-│   │   ├── controllers/     # Project, Task, User, Document controllers
-│   │   ├── middleware/       # JWT auth, RBAC
-│   │   ├── routes/           # API route definitions
-│   │   ├── services/
-│   │   │   └── rag/          # PDF parsing, chunking, retrieval
-│   │   └── utils/
-│   ├── prisma/
-│   │   └── schema.prisma     # Database schema
-│   └── .env.example
-├── frontend/
-│   ├── src/
-│   │   ├── pages/            # Dashboard, Projects, Tasks
-│   │   └── components/
-│   └── vite.config.js
-└── bot/
-    └── telegram/             # @AtlasRAGbot implementation
+DATABASE_URL=
+JWT_SECRET=
+MISTRAL_API_KEY=
+TELEGRAM_BOT_TOKEN=
+REDIS_URL=
 ```
 
 ---
 
-## Decision Log
+## Project Structure
 
-**Why Mistral over OpenAI for V1?**
-Cost. Mistral is approximately 10x cheaper than GPT-4 for similar quality on structured document tasks. At MVP stage with unknown query volume, cost predictability matters.
-
-**Why keyword search over vectors for V1?**
-Speed of implementation. Vector embeddings require choosing an embedding model, setting up a vector store, and managing dimensions. Keyword search works immediately. V2 upgrades this with full measurement of the quality difference.
-
-**Why Telegram first?**
-Lowest implementation friction. Telegram Bot API is free, well-documented, and requires no business verification. WhatsApp requires Meta Business API approval. Telegram validates the bot concept before investing in more complex integrations.
+```
+atlas-crm/
+├── backend/          # Main API server (Node.js + Express + Prisma)
+├── frontend/         # React + Vite dashboard
+├── rag-service/      # Standalone RAG microservice (V2+)
+├── bots/
+│   ├── telegram/     # @AtlasRAGbot
+│   ├── discord/      # V3
+│   └── whatsapp/     # V3
+├── docs/
+│   ├── V1_DOCUMENTATION.md
+│   ├── V2_DOCUMENTATION.md
+│   └── EXPERIMENT_LOG.md
+└── README.md
+```
 
 ---
 
-*V1 is locked. No further changes. All improvements go into V2.*
+## Why This Project Exists
+
+Most CRMs are passive tools — they store information that humans enter. Atlas CRM is an **active system** — it reads documents, understands context, generates tasks, and keeps teams aligned without human intervention.
+
+The goal is to answer the question: *what if your CRM could read your PRD and manage the project itself?*
+
+---
+
+## Current Status
+
+| Version | Status | Branch |
+|---------|--------|--------|
+| V1 | ✅ Complete | `v1-stable` |
+| V2 | 🔄 In Progress | `v2-dev` |
+| V3 | 📋 Planned | - |
+| V4 | 📋 Planned | - |
+| V5 | 📋 Planned | - |
+
+---
+
+## Built by
+
+**Pradeep Nagarajan** — AI Product Engineer and Technical Trainer  
+[Portfolio](https://tanstack-start-app.pradeep-nagarajan.workers.dev) · [LinkedIn](https://linkedin.com/in/pradeep824567) · [GitHub](https://github.com/Pradeeprdncas)
