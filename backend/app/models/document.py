@@ -24,3 +24,7 @@ class Document(Base):
     processing_status = Column(String,default="UPLOADED")
 
     processing_error = Column(Text,nullable=True)
+
+    source_provider = Column(String, nullable=True)
+
+    source_url = Column(String, nullable=True)

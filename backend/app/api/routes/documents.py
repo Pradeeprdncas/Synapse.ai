@@ -1,22 +1,19 @@
 import os
 import shutil
+import uuid
 
 from fastapi import APIRouter, UploadFile, File, Depends, Query, HTTPException
+from fastapi.responses import FileResponse
+from app.services.assignment_context import validate_download
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.models.document import Document
 from app.models.user import User
-from app.services.documents.extractor import extract_text
-from app.services.rag.keyword_rag import (
-    create_chunks,
-    save_chunks
-)
-
-from app.services.rag_service import (
-    ingest_text_to_rag
-)
+from app.services.document_ingestion import ingest_document
+from app.services.vector_store import delete_document_chunks
+from app.services.rbac import require_permission
 
 router = APIRouter(
     prefix="/documents",
@@ -35,7 +32,6 @@ def serialize_document(document):
         "uploaded_by": document.uploaded_by,
         "name": document.original_name,
         "original_name": document.original_name,
-        "file_path": document.file_path,
         "file_type": document.file_type,
         "status": document.processing_status,
         "processing_status": document.processing_status,
@@ -47,8 +43,13 @@ def serialize_document(document):
 @router.get("/")
 def list_documents(
     project_id: int | None = Query(default=None),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
+    if project_id is None:
+        raise HTTPException(400, "project_id is required")
+    require_permission(db, project_id, current_user, "project:view")
+    require_permission(db, project_id, current_user, "documents:write")
     query = db.query(Document)
     if project_id is not None:
         query = query.filter(Document.project_id == project_id)
@@ -62,7 +63,10 @@ def upload_document(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    file_path = f"{UPLOAD_DIR}/{file.filename}"
+    # Authorize before writing any attacker-controlled bytes to disk.
+    require_permission(db, project_id, current_user, "documents:write")
+    safe_name = os.path.basename(file.filename or "document")
+    file_path = f"{UPLOAD_DIR}/{uuid.uuid4().hex}-{safe_name}"
 
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
@@ -70,7 +74,7 @@ def upload_document(
     document = Document(
         project_id=project_id,
         uploaded_by=current_user.id,
-        original_name=file.filename,
+        original_name=safe_name,
         file_path=file_path,
         file_type=file.content_type,
         processing_status="PROCESSING"
@@ -80,9 +84,7 @@ def upload_document(
     db.refresh(document)
 
     try:
-        text = extract_text(file_path)
-        chunks = create_chunks(text)
-        save_chunks(project_id, chunks)
+        ingest_document(db, document)
         document.processing_status = "READY"
 
     except Exception as exc:
@@ -100,11 +102,13 @@ def upload_document(
 @router.delete("/{document_id}")
 def delete_document(
     document_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     document = db.query(Document).filter(Document.id == document_id).first()
     if not document:
         raise HTTPException(status_code=404, detail="Document not found")
+    require_permission(db, document.project_id, current_user, "documents:write")
     
     # Try to delete the physical file
     if document.file_path and os.path.exists(document.file_path):
@@ -113,8 +117,15 @@ def delete_document(
         except Exception:
             pass # Continue even if file removal fails
     
+    delete_document_chunks(document.project_id, document.id)
     db.delete(document)
     db.commit()
     return {"message": "Document deleted successfully"}
 
 
+@router.get("/{document_id}/download")
+def download_document(document_id: int, recipient_id: int, expires: int, signature: str, db: Session = Depends(get_db)):
+    document = db.query(Document).filter_by(id=document_id).first()
+    if not document or not document.file_path or not os.path.isfile(document.file_path): raise HTTPException(404, "Document file not found")
+    validate_download(db, document, recipient_id, expires, signature)
+    return FileResponse(document.file_path, media_type=document.file_type or "application/octet-stream", filename=document.original_name)

@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+import os
 
 import bcrypt
 from jose import JWTError, jwt
@@ -17,7 +18,7 @@ from app.core.database import get_db
 from app.models.user import User
 
 
-SECRET_KEY = "11:11"
+SECRET_KEY = os.getenv("JWT_SECRET_KEY", "development-only-change-me")
 
 ALGORITHM = "HS256"
 
@@ -93,7 +94,7 @@ def get_current_user(
         User.id == user_id
     ).first()
 
-    if not user:
+    if not user or not user.is_active:
 
         raise HTTPException(
             status_code=401,
@@ -101,3 +102,9 @@ def get_current_user(
         )
 
     return user
+
+
+def require_admin(current_user: User = Depends(get_current_user)) -> User:
+    if current_user.role != "ADMIN":
+        raise HTTPException(status_code=403, detail="Administrator access required")
+    return current_user

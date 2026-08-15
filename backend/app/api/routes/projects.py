@@ -15,6 +15,7 @@ from app.utils.permissions import check_project_access
 
 from app.schemas.project import ProjectDashboardResponse
 from app.models.activity_log import ActivityLog
+from app.services.rbac import ProjectRole, require_permission
 
 router = APIRouter(
     prefix="/projects",
@@ -63,7 +64,6 @@ def serialize_document(document):
         "uploaded_by": document.uploaded_by,
         "name": document.original_name,
         "original_name": document.original_name,
-        "file_path": document.file_path,
         "file_type": document.file_type,
         "status": document.processing_status,
         "processing_status": document.processing_status,
@@ -71,7 +71,7 @@ def serialize_document(document):
     }
 
 
-def serialize_project(project, include_children=False):
+def serialize_project(project, include_children=False, current_user_id=None, project_role=None):
     payload = {
         "id": project.id,
         "name": project.name,
@@ -83,9 +83,14 @@ def serialize_project(project, include_children=False):
         "document_count": len(project.documents),
     }
     if include_children:
+        tasks = project.tasks
+        documents = project.documents
+        if project_role in ("JUNIOR_DEVELOPER", "INTERN"):
+            tasks = [task for task in tasks if task.assigned_to == current_user_id]
+            documents = []
         payload.update({
-            "tasks": [serialize_task(task) for task in project.tasks],
-            "documents": [serialize_document(document) for document in project.documents],
+            "tasks": [serialize_task(task) for task in tasks],
+            "documents": [serialize_document(document) for document in documents],
             "modules": [serialize_module(module) for module in project.modules],
         })
     return payload
@@ -111,7 +116,7 @@ def create_project(
     member = ProjectMember(
         project_id=new_project.id,
         user_id=current_user.id,
-        role="OWNER"
+        role="MANAGER"
     )
 
     db.add(member)
@@ -120,9 +125,11 @@ def create_project(
     return serialize_project(new_project)
 
 @router.get("/")
-def get_projects(db: Session = Depends(get_db)):
-
-    projects = db.query(Project).all()
+def get_projects(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    if current_user.role == "ADMIN":
+        return [serialize_project(project) for project in db.query(Project).order_by(Project.created_at.desc()).all()]
+    project_ids = [row.project_id for row in db.query(ProjectMember).filter_by(user_id=current_user.id, active=True).all()]
+    projects = db.query(Project).filter((Project.owner_id == current_user.id) | (Project.id.in_(project_ids))).all()
 
     return [serialize_project(project) for project in projects]
 
@@ -138,14 +145,16 @@ def my_projects(
 @router.get("/{project_id}")
 def get_project(
     project_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
+    _, _, role = require_permission(db, project_id, current_user, "project:view")
 
     project = db.query(Project).filter(
         Project.id == project_id
     ).first()
 
-    return serialize_project(project, include_children=True) if project else None
+    return serialize_project(project, include_children=True, current_user_id=current_user.id, project_role=role.value) if project else None
 
 
 @router.post("/{project_id}/invite")
@@ -157,11 +166,15 @@ def invite_member(
     current_user: User = Depends(get_current_user)
 ):
 
-    check_project_access(
-        db,
-        project_id,
-        current_user.id
-    )
+    require_permission(db, project_id, current_user, "members:manage")
+    try:
+        ProjectRole(role)
+    except ValueError:
+        raise HTTPException(400, "Invalid project role")
+    if not db.query(User).filter_by(id=user_id).first():
+        raise HTTPException(404, "User not found")
+    if db.query(ProjectMember).filter_by(project_id=project_id, user_id=user_id).first():
+        raise HTTPException(409, "User is already a project member")
 
     member = ProjectMember(
         project_id=project_id,
@@ -181,14 +194,16 @@ def invite_member(
 @router.get("/{project_id}/dashboard")
 def get_dashboard(
     project_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
+    _, _, role = require_permission(db, project_id, current_user, "project:view")
 
     project = db.query(Project).filter(
         Project.id == project_id
     ).first()
 
-    return serialize_project(project, include_children=True) if project else None
+    return serialize_project(project, include_children=True, current_user_id=current_user.id, project_role=role.value) if project else None
 
 
 @router.patch("/{project_id}")

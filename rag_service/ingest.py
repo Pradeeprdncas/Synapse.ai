@@ -64,7 +64,7 @@ def generate_embeddings(texts: list):
     url = "https://api.mistral.ai/v1/embeddings"
 
     headers = {
-        "Authorization": f"Bearer aDzsOBm8nbVI8WVp2FpO6tcD71xJvNQD",
+        "Authorization": f"Bearer {MISTRAL_API_KEY}",
         "Content-Type": "application/json"
     }
 

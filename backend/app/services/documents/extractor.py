@@ -10,6 +10,10 @@ def extract_text(file_path: str):
     if file_path.endswith(".docx"):
         return extract_docx(file_path)
 
+    if file_path.lower().endswith((".txt", ".md", ".markdown")):
+        with open(file_path, "r", encoding="utf-8") as source:
+            return source.read()
+
     return ""
 
 

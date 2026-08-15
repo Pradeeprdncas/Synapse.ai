@@ -1,12 +1,31 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { makePlaceholder } from "@/components/common/Placeholder";
+import { FormEvent, useEffect, useState } from "react";
+import { UserPlus, Users } from "lucide-react";
+import { toast } from "sonner";
+import { adminApi, type ManagedUser } from "@/lib/api/adminApi";
+import { projectApi, type ProjectSummary } from "@/lib/api/projectApi";
+import { toApiError } from "@/lib/api/client";
+import { useAuthStore } from "@/store/authStore";
 
-export const Route = createFileRoute("/_app/team")({
-  head: () => ({
-    meta: [
-      { title: "Team — Atlas" },
-      { name: "description", content: "Members, roles, workload, contribution, and project assignments." },
-    ],
-  }),
-  component: makePlaceholder("Team", "Members, roles, workload, contribution, and project assignments."),
-});
+export const Route = createFileRoute("/_app/team")({ component: TeamPage });
+const roles = ["MANAGER", "TEAM_LEAD", "SENIOR_DEVELOPER", "JUNIOR_DEVELOPER", "INTERN"];
+
+function TeamPage() {
+  const current = useAuthStore(s => s.user);
+  const [users, setUsers] = useState<ManagedUser[]>([]); const [projects, setProjects] = useState<ProjectSummary[]>([]);
+  const [projectId, setProjectId] = useState(""); const [members, setMembers] = useState<any[]>([]); const [busy, setBusy] = useState(false);
+  const [userForm, setUserForm] = useState({ name: "", email: "", password: "", role: "MEMBER", send_email: true });
+  const [memberForm, setMemberForm] = useState({ user_id: 0, project_role: "JUNIOR_DEVELOPER", skills: "", experience_level: "STANDARD", current_capacity: 1 });
+  const isAdmin = current?.role === "ADMIN";
+  const load = async () => { const ps = await projectApi.list(); setProjects(ps); if (isAdmin) setUsers(await adminApi.users()); if (!projectId && ps[0]) setProjectId(ps[0].id); };
+  useEffect(() => { load().catch(e => toast.error(toApiError(e).message)); }, [isAdmin]);
+  useEffect(() => { if (projectId) { adminApi.projectMembers(projectId).then(setMembers).catch(e => { setMembers([]); toast.error(toApiError(e).message); }); adminApi.eligibleProjectMembers(projectId).then(setUsers).catch(() => undefined); } }, [projectId]);
+  const createUser = async (event: FormEvent) => { event.preventDefault(); setBusy(true); try { const made = await adminApi.createUser(userForm); setUsers(v => [...v, made]); setMemberForm(v => ({ ...v, user_id: made.id })); setUserForm({ name: "", email: "", password: "", role: "MEMBER", send_email: true }); toast.success(`User created; email ${made.credential_email_status.toLowerCase()}`); } catch(e) { toast.error(toApiError(e).message); } finally { setBusy(false); } };
+  const addMember = async (event: FormEvent) => { event.preventDefault(); setBusy(true); try { const member = await adminApi.addProjectMember(projectId, { ...memberForm, skills: memberForm.skills.split(",").map(x => x.trim()).filter(Boolean) }); setMembers(v => [...v, member]); toast.success("Member added to project"); } catch(e) { toast.error(toApiError(e).message); } finally { setBusy(false); } };
+  const field = "h-10 rounded-md border border-border bg-surface px-3 text-sm outline-none focus:border-primary/50";
+  return <div className="space-y-6"><div><h1 className="font-display text-2xl font-semibold">Team</h1><p className="mt-1 text-sm text-muted-foreground">Create application users, define project roles, skills, and capacity.</p></div>
+    {isAdmin && <section className="rounded-xl border border-border bg-card p-5"><h2 className="flex items-center gap-2 font-semibold"><UserPlus className="h-4 w-4 text-primary"/>Create user</h2><form onSubmit={createUser} className="mt-4 grid gap-3 md:grid-cols-2 lg:grid-cols-5"><input required placeholder="Full name" value={userForm.name} onChange={e=>setUserForm({...userForm,name:e.target.value})} className={field}/><input required type="email" placeholder="Email" value={userForm.email} onChange={e=>setUserForm({...userForm,email:e.target.value})} className={field}/><input required minLength={7} type="password" placeholder="Initial password" value={userForm.password} onChange={e=>setUserForm({...userForm,password:e.target.value})} className={field}/><select value={userForm.role} onChange={e=>setUserForm({...userForm,role:e.target.value})} className={field}><option>MEMBER</option><option>ADMIN</option></select><button disabled={busy} className="rounded-md bg-primary px-3 text-sm text-primary-foreground">Create & notify</button><label className="text-xs text-muted-foreground"><input type="checkbox" checked={userForm.send_email} onChange={e=>setUserForm({...userForm,send_email:e.target.checked})}/> Email login credentials when Gmail is connected</label></form></section>}
+    <section className="rounded-xl border border-border bg-card p-5"><h2 className="flex items-center gap-2 font-semibold"><Users className="h-4 w-4 text-primary"/>Project membership</h2><div className="mt-4"><select value={projectId} onChange={e=>setProjectId(e.target.value)} className={`${field} max-w-md`}><option value="">Select project</option>{projects.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select></div>{projectId && <form onSubmit={addMember} className="mt-4 grid gap-3 md:grid-cols-2 lg:grid-cols-5"><select required value={memberForm.user_id||""} onChange={e=>setMemberForm({...memberForm,user_id:Number(e.target.value)})} className={field}><option value="">Select user</option>{users.map(u=><option key={u.id} value={u.id}>{u.name} — {u.email}</option>)}</select><select value={memberForm.project_role} onChange={e=>setMemberForm({...memberForm,project_role:e.target.value})} className={field}>{roles.map(r=><option key={r}>{r}</option>)}</select><input placeholder="Skills, comma separated" value={memberForm.skills} onChange={e=>setMemberForm({...memberForm,skills:e.target.value})} className={field}/><input type="number" min="0.1" max="2" step="0.1" value={memberForm.current_capacity} onChange={e=>setMemberForm({...memberForm,current_capacity:Number(e.target.value)})} className={field}/><button disabled={busy||!memberForm.user_id} className="rounded-md bg-primary px-3 text-sm text-primary-foreground">Add member</button></form>}
+      <div className="mt-5 overflow-x-auto"><table className="w-full text-left text-sm"><thead className="text-xs text-muted-foreground"><tr><th className="p-2">Member</th><th>Role</th><th>Skills</th><th>Active tasks</th><th>Capacity</th></tr></thead><tbody>{members.map(m=><tr key={m.memberId} className="border-t border-border"><td className="p-2">{m.name}</td><td>{m.projectRole?.replaceAll("_"," ")}</td><td>{m.skills?.join(", ")||"—"}</td><td>{m.activeTasks}</td><td>{m.workloadIndicator}</td></tr>)}</tbody></table>{!members.length&&<p className="py-6 text-sm text-muted-foreground">No project members found.</p>}</div></section>
+  </div>;
+}

@@ -21,6 +21,8 @@ class Task(Base):
 
     priority = Column(String, default="MEDIUM")
 
+    complexity = Column(String, default="STANDARD", nullable=False)
+
     created_at = Column(DateTime, default=datetime.utcnow)
 
     module_id = Column(Integer,ForeignKey("modules.id"),nullable=True)

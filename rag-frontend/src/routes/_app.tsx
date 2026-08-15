@@ -54,7 +54,7 @@ function AppLayout() {
         <TopBar />
         <main className="relative flex-1 overflow-x-hidden">
           <div className="grid-bg pointer-events-none absolute inset-0 -z-10 opacity-40" />
-          <div className="mx-auto w-full max-w-[1400px] px-6 py-8">
+          <div className="mx-auto w-full max-w-[1400px] px-3 py-5 sm:px-6 sm:py-8">
             <Outlet />
           </div>
         </main>

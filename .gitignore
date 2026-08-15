@@ -55,3 +55,7 @@ build/
 
 # Logs
 *.log
+
+# Atlas local runtime data (canonical demo input lives in demo/)
+backend/storage/atlas_qdrant/
+backend/storage/uploads/*-atlas-agent-sample-prd.md

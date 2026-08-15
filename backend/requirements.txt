@@ -80,3 +80,6 @@ wcwidth==0.7.0
 websockets==16.0
 xxhash==3.7.0
 zstandard==0.25.0
+pytest>=8.0,<9
+qdrant-client>=1.11,<2
+cryptography>=43,<46

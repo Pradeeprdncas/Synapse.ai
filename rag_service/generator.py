@@ -49,7 +49,7 @@ def generate_answer(prompt: str):
     url = "https://api.mistral.ai/v1/chat/completions"
 
     headers = {
-        "Authorization": f"Bearer aDzsOBm8nbVI8WVp2FpO6tcD71xJvNQD",
+        "Authorization": f"Bearer {MISTRAL_API_KEY}",
         "Content-Type": "application/json"
     }
 

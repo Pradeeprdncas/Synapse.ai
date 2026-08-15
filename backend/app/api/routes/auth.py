@@ -10,7 +10,7 @@ from app.core.security import (
 )
 
 from app.models.user import User
-from app.schemas.user import UserCreate, UserLogin
+from app.schemas.user import ProfileUpdate, UserCreate, UserLogin
 
 router = APIRouter(
     prefix="/auth",
@@ -63,9 +63,6 @@ def login(user: UserLogin, db: Session = Depends(get_db)):
         user.password,
         existing_user.password
     )
-    print("INPUT PASSWORD:", user.password)
-    print("DB PASSWORD:", existing_user.password)
-
     if not valid_password:
         raise HTTPException(
             status_code=400,
@@ -91,5 +88,22 @@ def me(current_user: User = Depends(get_current_user)):
         "id": current_user.id,
         "email": current_user.email,
         "name": current_user.name,
-        "role": "USER"
+        "role": current_user.role
     }
+
+
+@router.patch("/me")
+def update_me(payload: ProfileUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    values = payload.model_dump(exclude_unset=True)
+    if "email" in values and values["email"] != current_user.email:
+        if db.query(User).filter(User.email == values["email"], User.id != current_user.id).first():
+            raise HTTPException(409, "Email already exists")
+        current_user.email = values["email"]
+    if "name" in values:
+        current_user.name = values["name"].strip()
+    if values.get("new_password"):
+        if not values.get("current_password") or not verify_password(values["current_password"], current_user.password):
+            raise HTTPException(400, "Current password is incorrect")
+        current_user.password = hash_password(values["new_password"])
+    db.commit(); db.refresh(current_user)
+    return {"id": current_user.id, "email": current_user.email, "name": current_user.name, "role": current_user.role}

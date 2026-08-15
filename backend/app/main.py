@@ -18,6 +18,9 @@ import app.models
 
 from app.api.routes.chat import router as chat_router
 from app.api.routes.bot import router as bot_router
+from app.api.routes.atlas_agent import router as atlas_agent_router
+from app.api.routes.google import router as google_router
+from app.api.routes.admin import router as admin_router
 
 
 
@@ -47,11 +50,22 @@ def ensure_sqlite_schema():
     required_columns = {
         "tasks": {
             "module_id": "INTEGER",
+            "complexity": "VARCHAR DEFAULT 'STANDARD'",
         },
         "documents": {
             "processing_status": "VARCHAR DEFAULT 'UPLOADED'",
             "processing_error": "TEXT",
+            "source_provider": "VARCHAR",
+            "source_url": "VARCHAR",
         },
+        "project_members": {
+            "skills_json": "TEXT DEFAULT '[]'",
+            "experience_level": "VARCHAR DEFAULT 'STANDARD'",
+            "current_capacity": "FLOAT DEFAULT 1.0",
+            "active": "BOOLEAN DEFAULT 1",
+            "created_at": "DATETIME",
+        },
+        "activity_logs": {"actor_type": "VARCHAR DEFAULT 'USER'"},
     }
 
     with engine.begin() as connection:
@@ -77,6 +91,9 @@ app.include_router(rag_router)
 app.include_router(ai_router)
 app.include_router(bot_router)
 app.include_router(chat_router)
+app.include_router(atlas_agent_router)
+app.include_router(google_router)
+app.include_router(admin_router)
 
 
 

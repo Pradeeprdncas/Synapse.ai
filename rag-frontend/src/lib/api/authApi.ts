@@ -18,6 +18,8 @@ export const authApi = {
   register: (payload: RegisterPayload) =>
     apiClient.post<RegisterResponse>("/auth/register", payload).then((r) => r.data),
   me: () => apiClient.get<AuthUser>("/auth/me").then((r) => r.data),
+  updateMe: (payload: { name?: string; email?: string; current_password?: string; new_password?: string }) =>
+    apiClient.patch<AuthUser>("/auth/me", payload).then((r) => r.data),
   forgotPassword: (email: string) =>
     apiClient.post<{ ok: boolean }>("/auth/forgot-password", { email }).then((r) => r.data),
 };
