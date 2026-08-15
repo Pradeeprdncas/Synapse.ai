@@ -54,9 +54,6 @@ async def bot_chat(
 
     verify_bot(x_bot_secret)
 
-    print("\nBOT CHAT REQUEST")
-    print(request)
-
     response = await query_rag(
         question=request.question,
         project_id=request.project_id,
@@ -77,10 +74,6 @@ async def bot_upload(
 ):
 
     verify_bot(x_bot_secret)
-
-    print("\nBOT FILE UPLOAD")
-    print("PROJECT ID:", project_id)
-    print("FILENAME:", file.filename)
 
     content = await file.read()
 

@@ -4,6 +4,10 @@ import { Search, FolderKanban, SlidersHorizontal, Plus } from "lucide-react";
 import { useProjectStore } from "@/store/projectStore";
 import { PageHeader, EmptyState, Skeleton, Modal } from "@/components/common/Primitives";
 import { ProjectCard } from "@/components/projects/ProjectCard";
+import { useAuthStore } from "@/store/authStore";
+import { adminApi, type ManagedUser } from "@/lib/api/adminApi";
+import { toast } from "sonner";
+import { toApiError } from "@/lib/api/client";
 
 export const Route = createFileRoute("/_app/projects/")({
   head: () => ({
@@ -20,15 +24,22 @@ function ProjectsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({ name: "", description: "" });
+  const user = useAuthStore(s => s.user); const isAdmin = user?.role === "ADMIN";
+  const [managerId, setManagerId] = useState(0); const [users, setUsers] = useState<ManagedUser[]>([]);
 
   useEffect(() => {
     void fetchProjects();
   }, [fetchProjects]);
+  useEffect(() => { if (isAdmin) adminApi.users().then(setUsers).catch(() => undefined); }, [isAdmin]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
-    const success = await createProject(formData);
+    let success;
+    if (isAdmin && managerId) {
+      try { success = await adminApi.createProject({ ...formData, manager_user_id: managerId }); await fetchProjects(); toast.success("Project created and manager assigned"); }
+      catch (err) { toast.error(toApiError(err).message); success = null; }
+    } else success = await createProject(formData);
     setIsSubmitting(false);
     if (success) {
       setIsModalOpen(false);
@@ -174,6 +185,7 @@ function ProjectsPage() {
               className="h-10 w-full rounded-md border border-border bg-surface px-3 text-sm outline-none focus:border-primary/50"
             />
           </div>
+          {isAdmin && <div><label className="mb-1.5 block text-xs font-medium text-muted-foreground">Project manager</label><select required value={managerId || ""} onChange={e=>setManagerId(Number(e.target.value))} className="h-10 w-full rounded-md border border-border bg-surface px-3 text-sm"><option value="">Select manager</option>{users.filter(u=>u.is_active).map(u=><option key={u.id} value={u.id}>{u.name} — {u.email}</option>)}</select><p className="mt-1 text-[11px] text-muted-foreground">The selected user receives the MANAGER project role.</p></div>}
           <div>
             <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
               Description (optional)

@@ -1,5 +1,6 @@
 import json
 import requests
+from app.core.config import MISTRAL_API_KEY
 
 
 URL = "https://api.mistral.ai/v1/chat/completions"
@@ -53,7 +54,7 @@ Document:
 """
 
     headers = {
-        "Authorization": f"Bearer aDzsOBm8nbVI8WVp2FpO6tcD71xJvNQD",
+        "Authorization": f"Bearer {MISTRAL_API_KEY}",
         "Content-Type": "application/json"
     }
 
@@ -114,7 +115,7 @@ Document:
 def ask_mistral(prompt: str):
 
     headers = {
-        "Authorization": f"Bearer aDzsOBm8nbVI8WVp2FpO6tcD71xJvNQD",
+        "Authorization": f"Bearer {MISTRAL_API_KEY}",
         "Content-Type": "application/json"
     }
 

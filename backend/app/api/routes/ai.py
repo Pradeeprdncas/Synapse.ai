@@ -4,6 +4,9 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.security import get_current_user
+from app.models.user import User
+from app.services.rbac import require_permission
 
 from app.models.task import Task
 from app.models.checklist import ChecklistItem
@@ -22,8 +25,10 @@ router = APIRouter(
 @router.post("/analyze/{project_id}")
 def analyze_project_route(
     project_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
+    require_permission(db, project_id, current_user, "agent:run")
 
     chunk_file = f"storage/chunks/project_{project_id}.json"
 
@@ -72,17 +77,19 @@ def analyze_project_route(
 
 
 @router.get("/analysis/{project_id}")
-def get_analysis(project_id: int):
+def get_analysis(project_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    require_permission(db, project_id, current_user, "project:view")
 
-    data = load_analysis(project_id)
+    data = load_analysis(project_id) or {}
 
     return data
 
 
 @router.get("/summary/{project_id}")
-def get_summary(project_id: int):
+def get_summary(project_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    require_permission(db, project_id, current_user, "project:view")
 
-    data = load_analysis(project_id)
+    data = load_analysis(project_id) or {}
 
     return {
         "summary": data.get("project_summary")
@@ -90,9 +97,10 @@ def get_summary(project_id: int):
 
 
 @router.get("/risks/{project_id}")
-def get_risks(project_id: int):
+def get_risks(project_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    require_permission(db, project_id, current_user, "project:view")
 
-    data = load_analysis(project_id)
+    data = load_analysis(project_id) or {}
 
     return {
         "risks": data.get("risks", [])
@@ -100,9 +108,10 @@ def get_risks(project_id: int):
 
 
 @router.get("/modules/{project_id}")
-def get_modules(project_id: int):
+def get_modules(project_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    require_permission(db, project_id, current_user, "project:view")
 
-    data = load_analysis(project_id)
+    data = load_analysis(project_id) or {}
 
     return {
         "modules": data.get("modules", [])

@@ -35,6 +35,7 @@ class ActivityLog(Base):
     entity_id = Column(Integer)
 
     details = Column(Text)
+    actor_type = Column(String, default="USER", nullable=False)
     created_at = Column(
         DateTime,
         default=datetime.utcnow

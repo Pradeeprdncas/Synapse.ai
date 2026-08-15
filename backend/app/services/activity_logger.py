@@ -10,7 +10,9 @@ def log_activity(
     action,
     entity_type,
     entity_id,
-    metadata={}
+    metadata=None,
+    actor_type="USER",
+    commit=False,
 ):
 
     activity = ActivityLog(
@@ -19,8 +21,11 @@ def log_activity(
         action=action,
         entity_type=entity_type,
         entity_id=entity_id,
-        details=json.dumps(metadata)
+        details=json.dumps(metadata or {}),
+        actor_type=actor_type,
     )
 
     db.add(activity)
-    db.commit()
+    if commit:
+        db.commit()
+    return activity

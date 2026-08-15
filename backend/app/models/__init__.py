@@ -13,3 +13,4 @@ from .module import Module
 from .project_member import ProjectMember
 from .activity_log import ActivityLog
 from app.models.chat_message import ChatMessage
+from app.models.atlas_agent import AgentExecution, AssignmentRecommendation, DocumentChunk, GoogleConnection, NotificationDelivery, NotificationPreference, OAuthState, ProposalRequirement, Requirement, TaskProposal, TaskRequirement

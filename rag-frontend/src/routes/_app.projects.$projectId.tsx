@@ -14,6 +14,7 @@ import {
   Lightbulb,
   Network,
   RefreshCw,
+  Bot,
 } from "lucide-react";
 import { useProjectStore } from "@/store/projectStore";
 import { useAIStore } from "@/store/aiStore";
@@ -23,6 +24,7 @@ import { Pill, Skeleton, EmptyState } from "@/components/common/Primitives";
 import { ModuleNode } from "@/components/projects/ModuleNode";
 import { DocumentUploader } from "@/components/documents/DocumentUploader";
 import { cn } from "@/lib/utils";
+import { AtlasAgentPanel } from "@/components/projects/AtlasAgentPanel";
 
 export const Route = createFileRoute("/_app/projects/$projectId")({
   head: ({ params }) => ({
@@ -38,6 +40,7 @@ export const Route = createFileRoute("/_app/projects/$projectId")({
 });
 
 const SECTIONS = [
+  { id: "atlas-agent", label: "Atlas Agent", icon: Bot },
   { id: "overview", label: "Overview", icon: Layers },
   { id: "ai-summary", label: "AI Summary", icon: Sparkles },
   { id: "modules", label: "Modules", icon: Network },
@@ -211,6 +214,9 @@ function ProjectWorkspace() {
 
         {/* Sections */}
         <div className="min-w-0 flex-1 space-y-10">
+          <Block id="atlas-agent" title="Atlas Agent" icon={Bot}>
+            <AtlasAgentPanel projectId={projectId} />
+          </Block>
           <Block id="overview" title="Overview" icon={Layers}>
             <div className="grid gap-4 md:grid-cols-2">
               <Card title="Status">
