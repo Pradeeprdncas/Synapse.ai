@@ -36,7 +36,8 @@ venv/
 .venv/
 env/
 __pycache__/
-*.pyc
+*.py[cod]
+.pytest_cache/
 
 # Node
 node_modules/
@@ -45,7 +46,13 @@ build/
 
 # Environment files
 .env
-.env.local
+.env.*
+!.env.example
+
+# Local databases
+*.db
+*.sqlite
+*.sqlite3
 
 # Mac
 .DS_Store
@@ -58,4 +65,14 @@ build/
 
 # Atlas local runtime data (canonical demo input lives in demo/)
 backend/storage/atlas_qdrant/
-backend/storage/uploads/*-atlas-agent-sample-prd.md
+backend/storage/uploads/
+backend/storage/chunks/
+backend/storage/ai_outputs/
+rag_service/uploads/
+rag_service/qdrant_data/
+qdrant_storage/
+**/qdrant_storage/
+**/storage.sqlite
+
+# Frontend build caches
+.vite/

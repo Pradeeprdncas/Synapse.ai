@@ -1,4 +1,0 @@
-{
-    "error": "Mistral API request failed",
-    "details": "401 Client Error: Unauthorized for url: https://api.mistral.ai/v1/chat/completions"
-}
